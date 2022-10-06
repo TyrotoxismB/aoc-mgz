@@ -75,25 +75,23 @@ async def extract_rec(playback, path, select=None):
 def print_info(path):
     """Print basic info."""
     with open(path, 'rb') as handle:
-        summary = Summary(handle, fallback=True)
+        summary = Summary(handle)
         dataset = summary.get_dataset()
-        header = summary.get_header()
-        build = header.de.build if header.de and header.save_version >= 25.22 else None
         print('-------------')
         print(tabulate([
             ['Path', path],
             ['Duration', mgz.util.convert_to_timestamp(summary.get_duration() / 1000)],
             ['Played', datetime.utcfromtimestamp(summary.get_played()) if summary.get_played() else None],
             ['Completed', summary.get_completed()],
-            ['Restored', header.initial.restore_time > 0],
+            ['Restored', summary.get_restored()[0]],
             ['Postgame', bool(summary.get_postgame())],
-            ['Version', '{} ({}, {}, {}, {})'.format(header.version.name, header.game_version, header.save_version, header.log_version, build)],
+            ['Version', '{} ({}, {}, {}, {})'.format(*summary.get_version())],
             ['Dataset', '{} {}'.format(dataset['name'], dataset['version'])],
             ['File Hash', summary.get_file_hash()],
             ['Match Hash', summary.get_hash().hexdigest() if summary.get_hash() else None],
             ['Encoding', summary.get_encoding()],
             ['Language', summary.get_language()],
-            ['Map', '{} ({})'.format(summary.get_map()['name'], summary.get_map()['seed'])] # pylint: disable=unsubscriptable-object
+            ['Map', '{} ({}, {})'.format(summary.get_map()['name'], summary.get_map()['seed'], summary.get_map()['mod_id'])] # pylint: disable=unsubscriptable-object
         ], tablefmt='plain'))
 
 

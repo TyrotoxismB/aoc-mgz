@@ -2,8 +2,9 @@
 
 import codecs
 import collections
+import _hashlib
 import hashlib
-from datetime import timedelta
+from datetime import timedelta, datetime
 from enum import Enum
 
 import dataclasses
@@ -77,6 +78,15 @@ def get_starting_age(data):
         return data['de']['starting_age_id']
     return None
 
+
+def get_map_id(data):
+    if data['version'] is Version.HD:
+        return data['hd']['map_id']
+    if data['version'] is Version.DE:
+        return data['de']['rms_map_id']
+    return data['scenario']['map_id']
+
+
 def get_hash(data):
     if data['version'] is Version.DE:
         return data['de']['hash']
@@ -95,17 +105,20 @@ def parse_match(handle):
     consts = get_consts()
 
     dataset_id, dataset = get_dataset(data['version'], data['mod'])
-    map_id = data['hd']['map_id'] if data['version'] is Version.HD else data['scenario']['map_id']
-    map_data, encoding, language = get_map_data(
-        map_id,
-        data['scenario']['instructions'],
-        data['map']['dimension'],
-        data['version'],
-        dataset_id,
-        dataset,
-        data['map']['tiles'],
-        de_seed=data['lobby']['seed']
-    )
+    map_id = get_map_id(data)
+    try:
+            map_data, encoding, language = get_map_data(
+            map_id,
+            data['scenario']['instructions'],
+            data['map']['dimension'],
+            data['version'],
+            dataset_id,
+            dataset,
+            data['map']['tiles'],
+            de_seed=data['lobby']['seed']
+        )
+    except ValueError:
+        raise RuntimeError("could not get map data")
 
     # Handle DE-specific data
     if data['de']:
@@ -150,7 +163,7 @@ def parse_match(handle):
                 pos_x = obj['position']['x']
                 pos_y = obj['position']['y']
         players[player['number']] = Player(
-            player['color_id'] + 1,
+            player['number'],
             player['name'].decode(encoding),
             consts['player_colors'][str(player['color_id'])],
             player['color_id'],
@@ -173,7 +186,16 @@ def parse_match(handle):
         )
 
     # Assign teams
-    team_ids = set([frozenset(s) for s in allies.values()])
+    if de_players:
+        by_team = collections.defaultdict(list)
+        for number, player in de_players.items():
+            if player['team_id'] > 1:
+                by_team[player['team_id']].append(number)
+            elif player['team_id'] == 1:
+                by_team[number + 9].append(number)
+        team_ids = by_team.values()
+    else:
+        team_ids = set([frozenset(s) for s in allies.values()])
     teams = []
     for team in team_ids:
         t = [players[x] for x in team]
@@ -189,7 +211,7 @@ def parse_match(handle):
     chats = []
     for c in data['lobby']['chat']:
         chat = parse_chat(c, encoding, 0, pd, diplomacy_type, 'lobby')
-        if chat['player_number'] not in players:
+        if chat['type'] == ChatEnum.DISCARD or chat['player_number'] not in players:
             continue
         chats.append(Chat(
             timedelta(milliseconds=chat['timestamp']),
@@ -222,7 +244,7 @@ def parse_match(handle):
                 chat = parse_chat(op_data, encoding, timestamp, pd, diplomacy_type, 'game')
                 if chat['type'] == ChatEnum.MESSAGE:
                     chats.append(Chat(
-                        timedelta(milliseconds=chat['timestamp']),
+                        timedelta(milliseconds=chat['timestamp'] + data['map']['restore_time']),
                         chat['message'],
                         chat['origination'],
                         chat['audience'],
@@ -246,8 +268,9 @@ def parse_match(handle):
     # Compute winner(s)
     for team in teams:
         winner = not any([player for player in team if player in resigned])
-        for player in team:
-            player.winner = winner
+        if resigned:
+            for player in team:
+                player.winner = winner
 
     handle.seek(body_pos)
     file_bytes = handle.read()
@@ -264,6 +287,7 @@ def parse_match(handle):
             consts['map_sizes'][str(map_data['dimension'])],
             map_data['custom'],
             map_data['seed'],
+            data['de']['rms_mod_id'] if data['version'] is Version.DE and map_data['custom'] else None,
             map_data['name'].startswith('ZR@'),
             map_data['modes'],
             [
@@ -282,6 +306,8 @@ def parse_match(handle):
             players[data['metadata']['owner_id']],
             viewlocks
         ),
+        data['map']['restore_time'] > 0,
+        timedelta(milliseconds=data['map']['restore_time']),
         consts['speeds'][str(int(round(data['metadata']['speed'], 2) * 100))],
         int(round(data['metadata']['speed'], 2) * 100),
         data['metadata']['cheats'],
@@ -295,7 +321,7 @@ def parse_match(handle):
         data['lobby']['game_type_id'],
         consts['map_reveal_choices'][str(data['lobby']['reveal_map_id'])],
         data['lobby']['reveal_map_id'],
-        consts['difficulties'][str(get_difficulty(data))],
+        consts['difficulties'].get(str(get_difficulty(data))),
         get_difficulty(data),
         consts['starting_ages'].get(str(get_starting_age(data))),
         get_starting_age(data),
@@ -303,7 +329,7 @@ def parse_match(handle):
         get_lock_speed(data),
         get_all_technologies(data),
         True if data['version'] is Version.DE else None,
-        timedelta(milliseconds=timestamp),
+        timedelta(milliseconds=timestamp + data['map']['restore_time']),
         diplomacy_type,
         bool(resigned),
         data['version'],
@@ -311,6 +337,11 @@ def parse_match(handle):
         data['save_version'],
         data['log_version'],
         data['de']['build'] if data['version'] is Version.DE else None,
+        datetime.fromtimestamp(data['de']['timestamp']) if data['version'] is Version.DE and data['de']['timestamp'] else None,
+        timedelta(seconds=data['de']['spec_delay']) if data['version'] is Version.DE else None,
+        data['de']['allow_specs'] if data['version'] is Version.DE else None,
+        data['de']['hidden_civs'] if data['version'] is Version.DE else None,
+        data['de']['visibility_id'] == 2 if data['version'] is Version.DE else None,
         get_hash(data),
         actions,
         inputs.inputs
@@ -341,9 +372,11 @@ def serialize(obj):
             return obj.name
         elif isinstance(obj, timedelta):
             return str(obj)
+        elif isinstance(obj, datetime):
+            return str(obj)
         elif isinstance(obj, bytes):
             return None
-        elif isinstance(obj, hashlib.HASH):
+        elif isinstance(obj, _hashlib.HASH):
             return obj.hexdigest()
         else:
             return obj

@@ -46,9 +46,11 @@ class Action(Enum):
     DE_UNKNOWN_37 = 37
     DE_AUTOSCOUT = 38
     DE_UNKNOWN_39 = 39
+    DE_UNKNOWN_40 = 40
     DE_UNKNOWN_41 = 41
     DE_UNKNOWN_43 = 43
     AI_COMMAND = 53
+    DE_UNKNOWN_80 = 80
     MAKE = 100
     RESEARCH = 101
     BUILD = 102
@@ -75,6 +77,7 @@ class Action(Enum):
     DE_UNKNOWN_130 = 130
     DE_UNKNOWN_131 = 131
     DE_UNKNOWN_135 = 135
+    DE_UNKNOWN_138 = 138
     DE_TRIBUTE = 196
     POSTGAME = 255
 

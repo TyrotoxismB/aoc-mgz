@@ -49,7 +49,9 @@ ENCODING_MARKERS = [
     ['Vị trí: ', 'utf-8', 'vi'],
     ['위치: ', 'utf-8', 'kr'],
     ['Τύπος Χάρτη: ', 'utf-8', 'gr'],
-    ['Emplacement: ', 'utf-8', 'fr']
+    ['Emplacement: ', 'utf-8', 'fr'],
+    ['Local: ', 'utf-8', 'pt'],
+    ['Mapa: ', 'utf-8', 'cs'],
 ]
 LANGUAGE_MARKERS = [
     ['Dostepne', 'ISO-8859-2', 'pl'],
@@ -77,8 +79,9 @@ def extract_from_instructions(instructions):
         test_encoding = pair[1]
         e_m = marker.encode(test_encoding)
         for line in instructions.split(b'\n'):
-            pos = line.find(e_m)
-            if pos > -1:
+            has = line.startswith(e_m)
+            if has:
+                pos = 0
                 encoding = test_encoding
                 name = line[pos+len(e_m):].decode(encoding).replace('.rms', '')
                 language = pair[2]
@@ -101,7 +104,10 @@ def lookup_name(map_id, name, version, reference):
     custom = True
     is_de = version == Version.DE
     is_hd = version == Version.HD
-    if (map_id != 44 and not (is_de or is_hd)) or (map_id != 59 and (is_de or is_hd)):
+    # 59: RM custom
+    # 137: custom map pool
+    # 138: DM custom
+    if (map_id != 44 and not (is_de or is_hd)) or (map_id not in [59, 137, 138] and (is_de or is_hd)):
         map_keys = [int(k) for k in reference['maps'].keys()]
         if map_id in map_keys:
             name = reference['maps'][str(map_id)]
@@ -166,7 +172,17 @@ def get_water_percent(tiles, dataset_id):
     return count/len(tiles)
 
 
-def get_map_data(map_id, instructions, dimension, version, dataset_id, reference, tiles, de_seed=None):
+def get_mod_id(strings):
+    """Extract RMS mod id."""
+    for obj in strings:
+        if not obj.string:
+            continue
+        s = obj.string.value.decode('utf-8').split(':')
+        if s[0] == 'SUBSCRIBEDMODS' and s[1] == 'RANDOM_MAPS':
+            return s[3].split('_')[0]
+
+
+def get_map_data(map_id, instructions, dimension, version, dataset_id, reference, tiles, de_seed=None, de_strings=[]):
     """Get the map metadata."""
     if instructions == b'\x00':
         raise ValueError('empty instructions')
@@ -182,6 +198,7 @@ def get_map_data(map_id, instructions, dimension, version, dataset_id, reference
         'size': mgz.const.MAP_SIZES.get(dimension),
         'dimension': dimension,
         'seed': de_seed if de_seed else seed,
+        'mod_id': get_mod_id(de_strings) if custom else None,
         'modes': modes,
         'custom': custom,
         'zr': name.startswith('ZR@'),

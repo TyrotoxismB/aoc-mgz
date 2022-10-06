@@ -284,7 +284,6 @@ class FullSummary: # pylint: disable=too-many-public-methods
             'lobby_name': lobby_name,
             'allow_specs': self._header.de.allow_specs if self._header.de else None,
             'spec_delay': self._header.de.spec_delay if self._header.de else None,
-            'hidden_civs': self._header.de.hidden_civs if self._header.de else None,
             'private': self._header.de.lobby_visibility == 2 if self._header.de else None,
         }
 
@@ -312,19 +311,28 @@ class FullSummary: # pylint: disable=too-many-public-methods
             self.get_map()
         return self._cache['language']
 
+    def get_map_id(self):
+        """Get map ID."""
+        if self._header.hd:
+            return self._header.hd.selected_map_id
+        if self._header.de:
+            return self._header.de.resolved_map_id
+        return self._header.scenario.game_settings.map_id
+
     def get_map(self):
         """Get map."""
         tiles = tiles = [(tile.terrain_type, tile.elevation) for tile in self._header.map_info.tile]
         if not self._cache['map']:
             self._cache['map'], self._cache['encoding'], self._cache['language'] = get_map_data(
-                self._header.hd.selected_map_id if self._header.hd else self._header.scenario.game_settings.map_id,
+                self.get_map_id(),
                 self._header.scenario.messages.instructions,
                 self._header.map_info.size_x,
                 self._header.version,
                 self.get_dataset()['id'],
                 self.reference,
                 tiles,
-                de_seed=self._header.lobby.de.map_seed if self._header.lobby.de else None
+                de_seed=self._header.lobby.de.map_seed if self._header.lobby.de else None,
+                de_strings=self._header.de.rms_strings.strings if self._header.de else []
             )
         return self._cache['map']
 

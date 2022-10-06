@@ -102,7 +102,8 @@ class ModelSummary:
             ending_age=(3, 'Imperial'),
             victory_condition=(1, 'Conquest'),
             treaty_length=None,
-            multiqueue=self.match.multiqueue
+            multiqueue=self.match.multiqueue,
+            hidden_civs=self.match.hidden_civs
         )
 
     def get_file_hash(self):
@@ -121,7 +122,10 @@ class ModelSummary:
             ladder=None,
             rated=None,
             ratings=None,
-            lobby_name=self.match.lobby
+            lobby_name=self.match.lobby,
+            spec_delay=int(self.match.spec_delay.total_seconds()),
+            allow_specs=self.match.allow_specs,
+            private=self.match.private
         )
 
     def get_language(self):
@@ -137,7 +141,7 @@ class ModelSummary:
         return self.match.completed
 
     def get_restored(self):
-        return False, False
+        return self.match.restored, self.match.restored_at.total_seconds() * 1000
 
     def has_achievements(self):
         return False
@@ -150,6 +154,12 @@ class ModelSummary:
             self.match.log_version,
             self.match.build_version
         )
+
+    def get_played(self):
+        return self.match.timestamp.timestamp() if self.match.timestamp else None
+
+    def get_postgame(self):
+        return None
 
     def get_dataset(self):
         return dict(
@@ -244,6 +254,7 @@ class ModelSummary:
             dimension=self.match.map.dimension,
             custom=self.match.map.custom,
             seed=self.match.map.seed,
+            mod_id=self.match.map.mod_id,
             modes=self.match.map.modes,
             zr=self.match.map.zr,
             water=None,

@@ -1,7 +1,7 @@
 """Model class definitions."""
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timedelta, datetime
 from mgz.fast import Action as ActionEnum
 from mgz.util import Version
 
@@ -13,7 +13,7 @@ class Position:
     x: float
     y: float
 
-    def __hash__(self):
+    def hash(self):
         return hash((self.x, self.y))
 
 
@@ -104,6 +104,7 @@ class Map:
     size: str
     custom: bool
     seed: int
+    mod_id: int
     zr: bool
     modes: dict
     tiles: list
@@ -146,6 +147,8 @@ class Match:
     gaia: list
     map: Map
     file: File
+    restored: bool
+    restored_at: timedelta
     speed: str
     speed_id: int
     cheats: bool
@@ -175,6 +178,11 @@ class Match:
     save_version: float
     log_version: int
     build_version: int
+    timestamp: datetime
+    spec_delay: timedelta
+    allow_specs: bool
+    hidden_civs: bool
+    private: bool
     hash: str
     actions: list
     inputs: list
